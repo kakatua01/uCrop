@@ -9,21 +9,23 @@ import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.util.AttributeSet;
 
+import androidx.annotation.IntRange;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import com.yalantis.ucrop.BuildConfig;
 import com.yalantis.ucrop.R;
 import com.yalantis.ucrop.callback.BitmapCropCallback;
 import com.yalantis.ucrop.callback.CropBoundsChangeListener;
 import com.yalantis.ucrop.model.CropParameters;
 import com.yalantis.ucrop.model.ImageState;
 import com.yalantis.ucrop.task.BitmapCropTask;
+import com.yalantis.ucrop.task.BitmapNativeCropTask;
 import com.yalantis.ucrop.util.CubicEasing;
 import com.yalantis.ucrop.util.RectUtils;
 
 import java.lang.ref.WeakReference;
 import java.util.Arrays;
-
-import androidx.annotation.IntRange;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 /**
  * Created by Oleksii Shliama (https://github.com/shliama).
@@ -68,7 +70,7 @@ public class CropImageView extends TransformImageView {
 
     /**
      * Cancels all current animations and sets image to fill crop area (without animation).
-     * Then creates and executes {@link BitmapCropTask} with proper parameters.
+     * Then creates and executes {@link BitmapNativeCropTask} with proper parameters.
      */
     public void cropAndSaveImage(@NonNull Bitmap.CompressFormat compressFormat, int compressQuality,
                                  @Nullable BitmapCropCallback cropCallback) {
@@ -84,8 +86,16 @@ public class CropImageView extends TransformImageView {
                 compressFormat, compressQuality,
                 getImageInputPath(), getImageOutputPath(), getExifInfo());
 
-        new BitmapCropTask(getViewBitmap(), imageState, cropParameters, cropCallback)
-                .executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+        if (BuildConfig.type == "NATIVE") {
+            new BitmapNativeCropTask(getViewBitmap(), imageState, cropParameters, cropCallback)
+                    .executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+        } else {
+            cropParameters.setContentImageInputUri(getImageInputUri());
+            cropParameters.setContentImageOutputUri(getImageOutputUri());
+
+            new BitmapCropTask(getContext(), getViewBitmap(), imageState, cropParameters, cropCallback)
+                    .executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+        }
     }
 
     /**

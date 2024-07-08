@@ -5,16 +5,16 @@ apply from: '../mavenpush.gradle'
 android {
     compileSdk 33
     defaultConfig {
-        minSdkVersion 14
+        minSdkVersion 21
         targetSdkVersion 33
         versionCode 27
-        versionName "2.2.9"
+        versionName "2.3.0"
         namespace "com.yalantis.ucrop"
 
         vectorDrawables.useSupportLibrary = true
 
         aarMetadata {
-            minCompileSdk = 16
+            minCompileSdk = 21
         }
     }
     testFixtures {
@@ -50,6 +50,12 @@ android {
         create("nonNative") {
             dimension = "processing_type"
             buildConfigField("String", "type", '"NON_NATIVE"')
+        }
+    }
+
+    androidComponents {
+        onVariants(selector().withFlavor('processing_type', 'nonNative')) {
+            packaging.jniLibs.excludes.add('**/**.so')
         }
     }
     compileOptions {

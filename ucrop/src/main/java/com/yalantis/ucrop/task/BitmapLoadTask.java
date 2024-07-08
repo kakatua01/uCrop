@@ -21,6 +21,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.ref.WeakReference;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -40,7 +41,7 @@ public class BitmapLoadTask extends AsyncTask<Void, Void, BitmapLoadTask.BitmapW
 
     private static final int MAX_BITMAP_SIZE = 100 * 1024 * 1024;   // 100 MB
 
-    private final Context mContext;
+    private final WeakReference<Context> mContext;
     private Uri mInputUri;
     private Uri mOutputUri;
     private final int mRequiredWidth;
@@ -69,7 +70,7 @@ public class BitmapLoadTask extends AsyncTask<Void, Void, BitmapLoadTask.BitmapW
                           @NonNull Uri inputUri, @Nullable Uri outputUri,
                           int requiredWidth, int requiredHeight,
                           BitmapLoadCallback loadCallback) {
-        mContext = context;
+        mContext = new WeakReference<>(context);
         mInputUri = inputUri;
         mOutputUri = outputUri;
         mRequiredWidth = requiredWidth;
@@ -80,6 +81,11 @@ public class BitmapLoadTask extends AsyncTask<Void, Void, BitmapLoadTask.BitmapW
     @Override
     @NonNull
     protected BitmapWorkerResult doInBackground(Void... params) {
+        Context context = mContext.get();
+        if (context == null) {
+            return new BitmapWorkerResult(new NullPointerException("context is null"));
+        }
+
         if (mInputUri == null) {
             return new BitmapWorkerResult(new NullPointerException("Input Uri cannot be null"));
         }
@@ -100,7 +106,7 @@ public class BitmapLoadTask extends AsyncTask<Void, Void, BitmapLoadTask.BitmapW
         boolean decodeAttemptSuccess = false;
         while (!decodeAttemptSuccess) {
             try {
-                InputStream stream = mContext.getContentResolver().openInputStream(mInputUri);
+                InputStream stream = context.getContentResolver().openInputStream(mInputUri);
                 try {
                     decodeSampledBitmap = BitmapFactory.decodeStream(stream, null, options);
                     if (options.outWidth == -1 || options.outHeight == -1) {
@@ -124,7 +130,7 @@ public class BitmapLoadTask extends AsyncTask<Void, Void, BitmapLoadTask.BitmapW
             return new BitmapWorkerResult(new IllegalArgumentException("Bitmap could not be decoded from the Uri: [" + mInputUri + "]"));
         }
 
-        int exifOrientation = BitmapLoadUtils.getExifOrientation(mContext, mInputUri);
+        int exifOrientation = BitmapLoadUtils.getExifOrientation(context, mInputUri);
         int exifDegrees = BitmapLoadUtils.exifToDegrees(exifOrientation);
         int exifTranslation = BitmapLoadUtils.exifToTranslation(exifOrientation);
 
@@ -174,16 +180,17 @@ public class BitmapLoadTask extends AsyncTask<Void, Void, BitmapLoadTask.BitmapW
             throw new NullPointerException("Output Uri is null - cannot copy image");
         }
 
+        Context context = mContext.get();
         InputStream inputStream = null;
         OutputStream outputStream = null;
         try {
-            inputStream = mContext.getContentResolver().openInputStream(inputUri);
+            inputStream = context.getContentResolver().openInputStream(inputUri);
             if (inputStream == null) {
                 throw new NullPointerException("InputStream for given input Uri is null");
             }
 
             if (isContentUri(outputUri)) {
-                outputStream = mContext.getContentResolver().openOutputStream(outputUri);
+                outputStream = context.getContentResolver().openOutputStream(outputUri);
             } else {
                 outputStream = new FileOutputStream(new File(outputUri.getPath()));
             }
@@ -210,6 +217,11 @@ public class BitmapLoadTask extends AsyncTask<Void, Void, BitmapLoadTask.BitmapW
             throw new NullPointerException("Output Uri is null - cannot download image");
         }
 
+        Context context = mContext.get();
+        if (context == null) {
+            throw new NullPointerException("Context is null");
+        }
+
         OkHttpClient client = UCropHttpClientStore.INSTANCE.getClient();
 
         BufferedSource source = null;
@@ -225,7 +237,7 @@ public class BitmapLoadTask extends AsyncTask<Void, Void, BitmapLoadTask.BitmapW
             OutputStream outputStream;
 
             if (isContentUri(mOutputUri)) {
-                outputStream = mContext.getContentResolver().openOutputStream(outputUri);
+                outputStream = context.getContentResolver().openOutputStream(outputUri);
             } else {
                 outputStream = new FileOutputStream(new File(outputUri.getPath()));
             }
@@ -253,7 +265,7 @@ public class BitmapLoadTask extends AsyncTask<Void, Void, BitmapLoadTask.BitmapW
     @Override
     protected void onPostExecute(@NonNull BitmapWorkerResult result) {
         if (result.mBitmapWorkerException == null) {
-            mBitmapLoadCallback.onBitmapLoaded(result.mBitmapResult, result.mExifInfo, mInputUri.getPath(), (mOutputUri == null) ? null : mOutputUri.getPath());
+            mBitmapLoadCallback.onBitmapLoaded(result.mBitmapResult, result.mExifInfo, mInputUri, (mOutputUri == null) ? null : mOutputUri);
         } else {
             mBitmapLoadCallback.onFailure(result.mBitmapWorkerException);
         }

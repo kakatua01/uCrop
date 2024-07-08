@@ -31,10 +31,7 @@ publishing {
         }
     }
     repositories {
-        maven {
-            name = 'local_publish'
-            url = "${project.layout.buildDirectory.asFile.get()}/repo"
-        }
+        mavenLocal()
     }
     publications {
         nativeRelease(MavenPublication) {
