@@ -15,12 +15,13 @@ import androidx.annotation.Nullable;
 
 import com.yalantis.ucrop.BuildConfig;
 import com.yalantis.ucrop.R;
+import com.yalantis.ucrop.backend.UCropBackendType;
 import com.yalantis.ucrop.callback.BitmapCropCallback;
 import com.yalantis.ucrop.callback.CropBoundsChangeListener;
 import com.yalantis.ucrop.model.CropParameters;
 import com.yalantis.ucrop.model.ImageState;
 import com.yalantis.ucrop.task.BitmapCropTask;
-import com.yalantis.ucrop.task.BitmapNativeCropTask;
+import com.yalantis.ucrop.task.BitmapNonNativeCropTask;
 import com.yalantis.ucrop.util.CubicEasing;
 import com.yalantis.ucrop.util.RectUtils;
 
@@ -70,7 +71,7 @@ public class CropImageView extends TransformImageView {
 
     /**
      * Cancels all current animations and sets image to fill crop area (without animation).
-     * Then creates and executes {@link BitmapNativeCropTask} with proper parameters.
+     * Then creates and executes {@link BitmapCropTask} with proper parameters.
      */
     public void cropAndSaveImage(@NonNull Bitmap.CompressFormat compressFormat, int compressQuality,
                                  @Nullable BitmapCropCallback cropCallback) {
@@ -86,14 +87,14 @@ public class CropImageView extends TransformImageView {
                 compressFormat, compressQuality,
                 getImageInputPath(), getImageOutputPath(), getExifInfo());
 
-        if (BuildConfig.type == "NATIVE") {
-            new BitmapNativeCropTask(getViewBitmap(), imageState, cropParameters, cropCallback)
+        if (BuildConfig.type.equals(UCropBackendType.NATIVE.label)) {
+            new BitmapCropTask(getViewBitmap(), imageState, cropParameters, cropCallback)
                     .executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
         } else {
             cropParameters.setContentImageInputUri(getImageInputUri());
             cropParameters.setContentImageOutputUri(getImageOutputUri());
 
-            new BitmapCropTask(getContext(), getViewBitmap(), imageState, cropParameters, cropCallback)
+            new BitmapNonNativeCropTask(getContext(), getViewBitmap(), imageState, cropParameters, cropCallback)
                     .executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
         }
     }

@@ -17,9 +17,6 @@ android {
             minCompileSdk = 21
         }
     }
-    testFixtures {
-        enable = true
-    }
     publishing {
         singleVariant('nativeRelease') {
             withSourcesJar()
@@ -67,11 +64,6 @@ android {
     }
 
     resourcePrefix 'ucrop_'
-
-    sourceSets.main {
-        jni.srcDirs = []
-    }
-
 }
 
 dependencies {

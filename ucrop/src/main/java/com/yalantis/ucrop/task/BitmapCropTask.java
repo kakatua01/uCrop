@@ -1,8 +1,7 @@
 package com.yalantis.ucrop.task;
 
-import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.Matrix;
+import android.graphics.BitmapFactory;
 import android.graphics.RectF;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -16,15 +15,11 @@ import com.yalantis.ucrop.callback.BitmapCropCallback;
 import com.yalantis.ucrop.model.CropParameters;
 import com.yalantis.ucrop.model.ExifInfo;
 import com.yalantis.ucrop.model.ImageState;
-import com.yalantis.ucrop.util.BitmapLoadUtils;
 import com.yalantis.ucrop.util.FileUtils;
 import com.yalantis.ucrop.util.ImageHeaderParser;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.lang.ref.WeakReference;
 
 /**
  * Crops part of image that fills the crop bounds.
@@ -37,9 +32,9 @@ public class BitmapCropTask extends AsyncTask<Void, Void, Throwable> {
 
     private static final String TAG = "BitmapCropTask";
 
-    private static final String CONTENT_SCHEME = "content";
-
-    private final WeakReference<Context> mContext;
+    static {
+        System.loadLibrary("ucrop");
+    }
 
     private Bitmap mViewBitmap;
 
@@ -52,17 +47,14 @@ public class BitmapCropTask extends AsyncTask<Void, Void, Throwable> {
     private final Bitmap.CompressFormat mCompressFormat;
     private final int mCompressQuality;
     private final String mImageInputPath, mImageOutputPath;
-    private final Uri mImageInputUri, mImageOutputUri;
     private final ExifInfo mExifInfo;
     private final BitmapCropCallback mCropCallback;
 
     private int mCroppedImageWidth, mCroppedImageHeight;
     private int cropOffsetX, cropOffsetY;
 
-    public BitmapCropTask(@NonNull Context context, @Nullable Bitmap viewBitmap, @NonNull ImageState imageState, @NonNull CropParameters cropParameters,
+    public BitmapCropTask(@Nullable Bitmap viewBitmap, @NonNull ImageState imageState, @NonNull CropParameters cropParameters,
                           @Nullable BitmapCropCallback cropCallback) {
-
-        mContext = new WeakReference<>(context);
 
         mViewBitmap = viewBitmap;
         mCropRect = imageState.getCropRect();
@@ -78,8 +70,6 @@ public class BitmapCropTask extends AsyncTask<Void, Void, Throwable> {
 
         mImageInputPath = cropParameters.getImageInputPath();
         mImageOutputPath = cropParameters.getImageOutputPath();
-        mImageInputUri = cropParameters.getContentImageInputUri();
-        mImageOutputUri = cropParameters.getContentImageOutputUri();
         mExifInfo = cropParameters.getExifInfo();
 
         mCropCallback = cropCallback;
@@ -96,12 +86,10 @@ public class BitmapCropTask extends AsyncTask<Void, Void, Throwable> {
             return new NullPointerException("CurrentImageRect is empty");
         }
 
-        if (mImageOutputUri == null) {
-            return new NullPointerException("ImageOutputUri is null");
-        }
+        float resizeScale = resize();
 
         try {
-            crop();
+            crop(resizeScale);
             mViewBitmap = null;
         } catch (Throwable throwable) {
             return throwable;
@@ -110,47 +98,38 @@ public class BitmapCropTask extends AsyncTask<Void, Void, Throwable> {
         return null;
     }
 
-    private boolean crop() throws IOException {
-        Context context = mContext.get();
-        if (context == null) {
-            return false;
-        }
+    private float resize() {
+        final BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(mImageInputPath, options);
 
-        // Downsize if needed
+        boolean swapSides = mExifInfo.getExifDegrees() == 90 || mExifInfo.getExifDegrees() == 270;
+        float scaleX = (swapSides ? options.outHeight : options.outWidth) / (float) mViewBitmap.getWidth();
+        float scaleY = (swapSides ? options.outWidth : options.outHeight) / (float) mViewBitmap.getHeight();
+
+        float resizeScale = Math.min(scaleX, scaleY);
+
+        mCurrentScale /= resizeScale;
+
+        resizeScale = 1;
         if (mMaxResultImageSizeX > 0 && mMaxResultImageSizeY > 0) {
             float cropWidth = mCropRect.width() / mCurrentScale;
             float cropHeight = mCropRect.height() / mCurrentScale;
 
             if (cropWidth > mMaxResultImageSizeX || cropHeight > mMaxResultImageSizeY) {
 
-                float scaleX = mMaxResultImageSizeX / cropWidth;
-                float scaleY = mMaxResultImageSizeY / cropHeight;
-                float resizeScale = Math.min(scaleX, scaleY);
-
-                Bitmap resizedBitmap = Bitmap.createScaledBitmap(mViewBitmap,
-                        Math.round(mViewBitmap.getWidth() * resizeScale),
-                        Math.round(mViewBitmap.getHeight() * resizeScale), false);
-                if (mViewBitmap != resizedBitmap) {
-                    mViewBitmap.recycle();
-                }
-                mViewBitmap = resizedBitmap;
+                scaleX = mMaxResultImageSizeX / cropWidth;
+                scaleY = mMaxResultImageSizeY / cropHeight;
+                resizeScale = Math.min(scaleX, scaleY);
 
                 mCurrentScale /= resizeScale;
             }
         }
+        return resizeScale;
+    }
 
-        // Rotate if needed
-        if (mCurrentAngle != 0) {
-            Matrix tempMatrix = new Matrix();
-            tempMatrix.setRotate(mCurrentAngle, mViewBitmap.getWidth() / 2, mViewBitmap.getHeight() / 2);
-
-            Bitmap rotatedBitmap = Bitmap.createBitmap(mViewBitmap, 0, 0, mViewBitmap.getWidth(), mViewBitmap.getHeight(),
-                    tempMatrix, true);
-            if (mViewBitmap != rotatedBitmap) {
-                mViewBitmap.recycle();
-            }
-            mViewBitmap = rotatedBitmap;
-        }
+    private boolean crop(float resizeScale) throws IOException {
+        ExifInterface originalExif = new ExifInterface(mImageInputPath);
 
         cropOffsetX = Math.round((mCropRect.left - mCurrentImageRect.left) / mCurrentScale);
         cropOffsetY = Math.round((mCropRect.top - mCurrentImageRect.top) / mCurrentScale);
@@ -161,59 +140,17 @@ public class BitmapCropTask extends AsyncTask<Void, Void, Throwable> {
         Log.i(TAG, "Should crop: " + shouldCrop);
 
         if (shouldCrop) {
-            saveImage(Bitmap.createBitmap(mViewBitmap, cropOffsetX, cropOffsetY, mCroppedImageWidth, mCroppedImageHeight));
-            if (mCompressFormat.equals(Bitmap.CompressFormat.JPEG)) {
-                copyExifForOutputFile(context);
+            boolean cropped = cropCImg(mImageInputPath, mImageOutputPath,
+                    cropOffsetX, cropOffsetY, mCroppedImageWidth, mCroppedImageHeight,
+                    mCurrentAngle, resizeScale, mCompressFormat.ordinal(), mCompressQuality,
+                    mExifInfo.getExifDegrees(), mExifInfo.getExifTranslation());
+            if (cropped && mCompressFormat.equals(Bitmap.CompressFormat.JPEG)) {
+                ImageHeaderParser.copyExif(originalExif, mCroppedImageWidth, mCroppedImageHeight, mImageOutputPath);
             }
-            return true;
+            return cropped;
         } else {
-            FileUtils.copyFile(context ,mImageInputUri, mImageOutputUri);
+            FileUtils.copyFile(mImageInputPath, mImageOutputPath);
             return false;
-        }
-    }
-
-    private void copyExifForOutputFile(Context context) throws IOException {
-        boolean hasImageInputUriContentSchema = BitmapLoadUtils.hasContentScheme(mImageInputUri);
-        boolean hasImageOutputUriContentSchema = BitmapLoadUtils.hasContentScheme(mImageOutputUri);
-        /*
-         * ImageHeaderParser.copyExif with output uri as a parameter
-         * uses ExifInterface constructor with FileDescriptor param for overriding output file exif info,
-         * which doesn't support ExitInterface.saveAttributes call for SDK lower than 21.
-         *
-         * See documentation for ImageHeaderParser.copyExif and ExifInterface.saveAttributes implementation.
-         */
-        if (hasImageInputUriContentSchema && hasImageOutputUriContentSchema) {
-            ImageHeaderParser.copyExif(context, mCroppedImageWidth, mCroppedImageHeight, mImageInputUri, mImageOutputUri);
-        } else if (hasImageInputUriContentSchema) {
-            ImageHeaderParser.copyExif(context, mCroppedImageWidth, mCroppedImageHeight, mImageInputUri, mImageOutputPath);
-        } else if (hasImageOutputUriContentSchema) {
-            ExifInterface originalExif = new ExifInterface(mImageInputPath);
-            ImageHeaderParser.copyExif(context, originalExif, mCroppedImageWidth, mCroppedImageHeight, mImageOutputUri);
-        } else {
-            ExifInterface originalExif = new ExifInterface(mImageInputPath);
-            ImageHeaderParser.copyExif(originalExif, mCroppedImageWidth, mCroppedImageHeight, mImageOutputPath);
-        }
-    }
-
-    private void saveImage(@NonNull Bitmap croppedBitmap) {
-        Context context = mContext.get();
-        if (context == null) {
-            return;
-        }
-
-        OutputStream outputStream = null;
-        ByteArrayOutputStream outStream = null;
-        try {
-            outputStream = context.getContentResolver().openOutputStream(mImageOutputUri);
-            outStream = new ByteArrayOutputStream();
-            croppedBitmap.compress(mCompressFormat, mCompressQuality, outStream);
-            outputStream.write(outStream.toByteArray());
-            croppedBitmap.recycle();
-        } catch (IOException exc) {
-            Log.e(TAG, exc.getLocalizedMessage());
-        } finally {
-            BitmapLoadUtils.close(outputStream);
-            BitmapLoadUtils.close(outStream);
         }
     }
 
@@ -236,17 +173,19 @@ public class BitmapCropTask extends AsyncTask<Void, Void, Throwable> {
                 || mCurrentAngle != 0;
     }
 
+    @SuppressWarnings("JniMissingFunction")
+    native public static boolean
+    cropCImg(String inputPath, String outputPath,
+             int left, int top, int width, int height,
+             float angle, float resizeScale,
+             int format, int quality,
+             int exifDegrees, int exifTranslation) throws IOException, OutOfMemoryError;
+
     @Override
     protected void onPostExecute(@Nullable Throwable t) {
         if (mCropCallback != null) {
             if (t == null) {
-                Uri uri;
-
-                if (BitmapLoadUtils.hasContentScheme(mImageOutputUri)) {
-                    uri = mImageOutputUri;
-                } else {
-                    uri = Uri.fromFile(new File(mImageOutputPath));
-                }
+                Uri uri = Uri.fromFile(new File(mImageOutputPath));
                 mCropCallback.onBitmapCropped(uri, cropOffsetX, cropOffsetY, mCroppedImageWidth, mCroppedImageHeight);
             } else {
                 mCropCallback.onCropFailure(t);
