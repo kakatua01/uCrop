@@ -1,4 +1,5 @@
 apply plugin: 'com.android.library'
+apply plugin: 'maven-publish'
 apply from: '../mavenpush.gradle'
 
 android {
@@ -7,14 +8,48 @@ android {
         minSdkVersion 14
         targetSdkVersion 33
         versionCode 27
-        versionName "2.2.9-native"
+        versionName "2.2.9"
+        namespace "com.yalantis.ucrop"
 
         vectorDrawables.useSupportLibrary = true
+
+        aarMetadata {
+            minCompileSdk = 16
+        }
+    }
+    testFixtures {
+        enable = true
+    }
+    publishing {
+        singleVariant('nativeRelease') {
+            withSourcesJar()
+            withJavadocJar()
+        }
+        singleVariant('nonNativeRelease') {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
+    buildFeatures {
+        buildConfig = true
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    flavorDimensions += "processing_type"
+    productFlavors {
+        create("native") {
+            dimension = "processing_type"
+            versionNameSuffix = "-native"
+            buildConfigField("String", "type", '"NATIVE"')
+        }
+        create("nonNative") {
+            dimension = "processing_type"
+            buildConfigField("String", "type", '"NON_NATIVE"')
         }
     }
     compileOptions {

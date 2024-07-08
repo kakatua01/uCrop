@@ -4,12 +4,16 @@ android {
     compileSdk 33
     defaultConfig {
         applicationId "com.yalantis.ucrop.sample"
+        namespace "com.yalantis.ucrop.sample"
         minSdkVersion 14
         targetSdkVersion 33
         versionCode 13
         versionName "1.2.4"
     }
     flavorDimensions "default"
+    buildFeatures {
+        buildConfig = true
+    }
     buildTypes {
         release {
             minifyEnabled false
