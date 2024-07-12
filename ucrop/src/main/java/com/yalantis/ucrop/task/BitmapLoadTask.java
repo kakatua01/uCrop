@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ref.WeakReference;
+import java.util.Objects;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -180,7 +181,7 @@ public class BitmapLoadTask extends AsyncTask<Void, Void, BitmapLoadTask.BitmapW
             throw new NullPointerException("Output Uri is null - cannot copy image");
         }
 
-        Context context = mContext.get();
+        Context context = Objects.requireNonNull(mContext.get(), "Context is null");
         InputStream inputStream = null;
         OutputStream outputStream = null;
         try {
