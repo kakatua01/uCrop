@@ -4,12 +4,15 @@ android {
     compileSdk 33
     defaultConfig {
         applicationId "com.yalantis.ucrop.sample"
-        minSdkVersion 14
+        namespace "com.yalantis.ucrop.sample"
+        minSdkVersion 21
         targetSdkVersion 33
         versionCode 13
         versionName "1.2.4"
     }
-    flavorDimensions "default"
+    buildFeatures {
+        buildConfig = true
+    }
     buildTypes {
         release {
             minifyEnabled false
@@ -23,12 +26,22 @@ android {
     lintOptions {
         abortOnError false
     }
+    flavorDimensions += "processing_type"
+    flavorDimensions += "app_type"
     productFlavors {
         activity {
-            buildConfigField("int","RequestMode", "1")
+            dimension = "app_type"
+            buildConfigField("int","REQUEST_MODE", "1")
         }
         fragment {
-            buildConfigField("int","RequestMode", "2")
+            dimension = "app_type"
+            buildConfigField("int","REQUEST_MODE", "2")
+        }
+        create("native") {
+            dimension = "processing_type"
+        }
+        create("nonNative") {
+            dimension = "processing_type"
         }
     }
 }

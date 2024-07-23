@@ -1,20 +1,58 @@
 apply plugin: 'com.android.library'
+apply plugin: 'maven-publish'
 apply from: '../mavenpush.gradle'
 
 android {
     compileSdk 33
     defaultConfig {
-        minSdkVersion 14
+        minSdkVersion 21
         targetSdkVersion 33
         versionCode 27
-        versionName "2.2.9-native"
+        versionName "2.3.0"
+        namespace "com.yalantis.ucrop"
 
         vectorDrawables.useSupportLibrary = true
+
+        aarMetadata {
+            minCompileSdk = 21
+        }
+    }
+    publishing {
+        singleVariant('nativeRelease') {
+            withSourcesJar()
+            withJavadocJar()
+        }
+        singleVariant('nonNativeRelease') {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
+    buildFeatures {
+        buildConfig = true
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    flavorDimensions += "processing_type"
+    productFlavors {
+        create("native") {
+            dimension = "processing_type"
+            versionNameSuffix = "-native"
+            buildConfigField("String", "TYPE", '"NATIVE"')
+        }
+        create("nonNative") {
+            dimension = "processing_type"
+            buildConfigField("String", "TYPE", '"NON_NATIVE"')
+        }
+    }
+
+    androidComponents {
+        onVariants(selector().withFlavor('processing_type', 'nonNative')) {
+            packaging.jniLibs.excludes.add('**/**.so')
         }
     }
     compileOptions {
@@ -26,11 +64,6 @@ android {
     }
 
     resourcePrefix 'ucrop_'
-
-    sourceSets.main {
-        jni.srcDirs = []
-    }
-
 }
 
 dependencies {

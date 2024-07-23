@@ -20,23 +20,6 @@ def getRepositoryPassword() {
     return hasProperty('nexusPassword') ? nexusPassword : ""
 }
 
-
-tasks.register('androidJavadocs', Javadoc) {
-    source = android.sourceSets.main.java.sourceFiles
-}
-
-tasks.register('androidJavadocsJar', Jar) {
-    classifier = 'javadoc'
-    //basename = artifact_id
-    from androidJavadocs.destinationDir
-}
-
-tasks.register('androidSourcesJar', Jar) {
-    classifier = 'sources'
-    //basename = artifact_id
-    from android.sourceSets.main.java.sourceFiles
-}
-
 publishing {
     repositories {
         maven {
@@ -47,40 +30,56 @@ publishing {
             }
         }
     }
+    repositories {
+        mavenLocal()
+    }
     publications {
-        maven(MavenPublication) {
+        nativeRelease(MavenPublication) {
             afterEvaluate { project ->
-                from components.release
-                artifact androidSourcesJar
-                artifact androidJavadocsJar
-                version = project.version
+                def baseName = project.android.defaultConfig.versionName
+                def suffix = project.android.productFlavors.getByName("native").versionNameSuffix
+                version = baseName + (suffix ? suffix : "")
+                from components.nativeRelease
             }
+            applyDefaultPomInfo(nativeRelease)
+        }
+        nonNativeRelease(MavenPublication) {
+            alias = true
+            afterEvaluate { project ->
+                def baseName = project.android.defaultConfig.versionName
+                def suffix = project.android.productFlavors.getByName("nonNative").versionNameSuffix
+                version = baseName + (suffix ? suffix : "")
+                from components.nonNativeRelease
+            }
+            applyDefaultPomInfo(nonNativeRelease)
+        }
+    }
+}
 
-            pom {
-                name = POM_NAME
-                packaging = POM_PACKAGING
-                description = POM_DESCRIPTION
-                url = POM_URL
-                scm {
-                    url = POM_SCM_URL
-                    connection = POM_SCM_CONNECTION
-                    developerConnection = POM_SCM_DEV_CONNECTION
-                }
+def applyDefaultPomInfo(MavenPublication publication) {
+    publication.pom {
+        name = POM_NAME
+        packaging = POM_PACKAGING
+        description = POM_DESCRIPTION
+        url = POM_URL
+        scm {
+            url = POM_SCM_URL
+            connection = POM_SCM_CONNECTION
+            developerConnection = POM_SCM_DEV_CONNECTION
+        }
 
-                licenses {
-                    license {
-                        name = POM_LICENCE_NAME
-                        url = POM_LICENCE_URL
-                        distribution = POM_LICENCE_DIST
-                    }
-                }
+        licenses {
+            license {
+                name = POM_LICENCE_NAME
+                url = POM_LICENCE_URL
+                distribution = POM_LICENCE_DIST
+            }
+        }
 
-                developers {
-                    developer {
-                        id = POM_DEVELOPER_ID
-                        name = POM_DEVELOPER_NAME
-                    }
-                }
+        developers {
+            developer {
+                id = POM_DEVELOPER_ID
+                name = POM_DEVELOPER_NAME
             }
         }
     }
@@ -89,7 +88,8 @@ publishing {
 
 signing {
     required { isReleaseBuild() && gradle.taskGraph.hasTask("publishing") }
-    sign publishing.publications.maven
+    sign publishing.publications.nativeRelease
+    sign publishing.publications.nonNativeRelease
     sign configurations.archives
 }
 

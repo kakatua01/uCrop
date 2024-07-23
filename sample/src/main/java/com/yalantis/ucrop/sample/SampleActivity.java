@@ -25,6 +25,13 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.ColorInt;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.widget.Toolbar;
+import androidx.core.content.ContextCompat;
+
 import com.yalantis.ucrop.UCrop;
 import com.yalantis.ucrop.UCropActivity;
 import com.yalantis.ucrop.UCropFragment;
@@ -33,13 +40,6 @@ import com.yalantis.ucrop.UCropFragmentCallback;
 import java.io.File;
 import java.util.Locale;
 import java.util.Random;
-
-import androidx.annotation.ColorInt;
-import androidx.annotation.DrawableRes;
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.ActionBar;
-import androidx.appcompat.widget.Toolbar;
-import androidx.core.content.ContextCompat;
 
 /**
  * Created by Oleksii Shliama (https://github.com/shliama).
@@ -62,7 +62,7 @@ public class SampleActivity extends BaseActivity implements UCropFragmentCallbac
     private CheckBox mCheckBoxFreeStyleCrop;
     private Toolbar toolbar;
     private ScrollView settingsView;
-    private int requestMode = BuildConfig.RequestMode;
+    private int requestMode = BuildConfig.REQUEST_MODE;
 
     private UCropFragment fragment;
     private boolean mShowLoader;
